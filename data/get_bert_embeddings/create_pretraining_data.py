@@ -20,17 +20,26 @@ from __future__ import print_function
 
 import collections
 import os
+import sys
 import random
 
 import tensorflow as tf
 
+sys.path.append("/home/ec2-user/r2c/") # so we can access config
 from data.get_bert_embeddings import tokenization
 from data.get_bert_embeddings.vcr_loader import data_iter, convert_examples_to_features
+from config import BERT_VOCAB_PATH, VCR_PRETRAINING_DIR, VCR_ANNOTS_DIR
+
 
 flags = tf.flags
 
 FLAGS = flags.FLAGS
 
+flags.DEFINE_string("save_dir", VCR_PRETRAINING_DIR,  "where to save the records")
+
+flags.DEFINE_string("vcr_annots_dir", VCR_ANNOTS_DIR, "where train.jsonl is saved")
+
+flags.DEFINE_string("vocab_path", BERT_VOCAB_PATH, "vocab.txt")
 
 flags.DEFINE_string("split", 'train', "The split to use")
 
@@ -52,11 +61,10 @@ flags.DEFINE_integer(
 
 flags.DEFINE_float("masked_lm_prob", 0.15, "Masked LM probability.")
 
-mypath = os.getcwd()
-vocab_file = os.path.join(mypath, 'vocab.txt')
+vocab_file = FLAGS.vocab_path 
 assert os.path.exists(vocab_file)
 
-output_file = f'pretrainingdata.tfrecord'
+output_file = os.path.join(FLAGS.save_dir, f'pretrainingdata.tfrecord')
 
 class TrainingInstance(object):
     """A single training instance (sentence pair)."""
@@ -172,7 +180,7 @@ def create_float_feature(values):
 def create_training_instances(tokenizer, rng):
     print("Iterating through the data", flush=True)
     input_examples = []
-    for x in data_iter(f'../{FLAGS.split}.jsonl', tokenizer=tokenizer, max_seq_length=FLAGS.max_seq_length,
+    for x in data_iter(os.path.join(FLAGS.vcr_annots_dir, f'{FLAGS.split}.jsonl'), tokenizer=tokenizer, max_seq_length=FLAGS.max_seq_length,
                                 endingonly=False):
         input_examples.append(x[0])
 

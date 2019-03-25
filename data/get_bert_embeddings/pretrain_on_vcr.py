@@ -19,23 +19,52 @@ from __future__ import division
 from __future__ import print_function
 
 import os
-from data.get_bert_embeddings import modeling
-from data.get_bert_embeddings import optimization
+import sys
 import tensorflow as tf
 import zipfile
 import requests
+
+sys.path.append("/home/ec2-user/r2c/") # so we can access config
+from config import (BERT_CONFIG_PATH, VCR_BERT_CHECKPOINTS_DIR, BERT_VOCAB_PATH,
+                    VCR_PRETRAINING_DIR, PRETRAINED_BERT_CHECKPOINT_DIR, BERT_CHECKPOINT_DIR)
+from data.get_bert_embeddings import modeling
+from data.get_bert_embeddings import optimization
 
 flags = tf.flags
 
 FLAGS = flags.FLAGS
 
 ## Required parameters
+flags.DEFINE_string("bert_dir", VCR_BERT_CHECKPOINTS_DIR, "dir for bert checkpoints")
+flags.DEFINE_string("bert_config_path", BERT_CONFIG_PATH, "json config for bert")
+flags.DEFINE_string("bert_vocab_path", BERT_VOCAB_PATH, "vocab.txt for bert")
+
 flags.DEFINE_string(
-    "input_file", 'pretrainingdata.tfrecord',
+    "init_checkpoint", os.path.join(BERT_CHECKPOINT_DIR, "model.ckpt-19406"),
+    "Initial checkpoint (usually from a pre-trained BERT model).")
+
+flags.DEFINE_bool(
+    "do_lower_case", True,
+    "Whether to lower case the input text. Should be True for uncased "
+    "models and False for cased models.")
+
+flags.DEFINE_integer("batch_size", 32, "Batch size for predictions.")
+
+flags.DEFINE_bool("endingonly", False, "Only use the ending")
+
+flags.DEFINE_string("master", None,
+                    "If using a TPU, the address of the master.")
+
+flags.DEFINE_integer(
+    "num_tpu_cores", 8,
+    "Only used if `use_tpu` is True. Total number of TPU cores to use.")
+
+flags.DEFINE_string(
+    "input_file", os.path.join(VCR_PRETRAINING_DIR, 'pretrainingdata.tfrecord'),
     "Input TF example files (can be a glob or comma separated).")
 
 flags.DEFINE_string(
-    "output_dir", 'bert-pretrained',
+    "output_dir", PRETRAINED_BERT_CHECKPOINT_DIR,
     "The output directory where the model checkpoints will be written.")
 
 flags.DEFINE_integer(
@@ -49,7 +78,7 @@ flags.DEFINE_integer(
     "Maximum number of masked LM predictions per sequence. "
     "Must match data generation.")
 
-flags.DEFINE_bool("do_train", False, "Whether to run training.")
+flags.DEFINE_bool("do_train", True, "Whether to run training.")
 
 flags.DEFINE_bool("do_eval", False, "Whether to run eval on the dev set.")
 
@@ -92,14 +121,8 @@ tf.flags.DEFINE_string(
     "specified, we will attempt to automatically detect the GCE project from "
     "metadata.")
 
-tf.flags.DEFINE_string("master", None, "[Optional] TensorFlow master URL.")
 
-flags.DEFINE_integer(
-    "num_tpu_cores", 8,
-    "Only used if `use_tpu` is True. Total number of TPU cores to use.")
-
-
-if not os.path.exists('uncased_L-12_H-768_A-12'):
+if not os.path.exists(FLAGS.bert_dir):
     response = requests.get('https://storage.googleapis.com/bert_models/2018_10_18/uncased_L-12_H-768_A-12.zip',
                             stream=True)
     with open('uncased_L-12_H-768_A-12.zip', "wb") as handle:
@@ -111,9 +134,14 @@ if not os.path.exists('uncased_L-12_H-768_A-12'):
 
 print("BERT HAS BEEN DOWNLOADED")
 mypath = os.getcwd()
-bert_config_file = os.path.join(mypath, 'uncased_L-12_H-768_A-12', 'bert_config.json')
-vocab_file = os.path.join(mypath, 'uncased_L-12_H-768_A-12', 'vocab.txt')
-init_checkpoint = os.path.join(mypath, 'uncased_L-12_H-768_A-12', 'bert_model.ckpt')
+if os.path.exists(FLAGS.bert_config_path) == False:
+    bert_config_file = os.path.join(mypath, 'uncased_L-12_H-768_A-12', 'bert_config.json')
+else:
+    bert_config_file = FLAGS.bert_config_path
+if os.path.exists(FLAGS.bert_vocab_path) == False:
+    vocab_file = os.path.join(mypath, 'uncased_L-12_H-768_A-12', 'vocab.txt')
+else:
+    vocab_file = FLAGS.bert_vocab_path
 bert_config = modeling.BertConfig.from_json_file(bert_config_file)
 
 
@@ -440,7 +468,7 @@ run_config = tf.contrib.tpu.RunConfig(
 
 model_fn = model_fn_builder(
     bert_config=bert_config,
-    init_checkpoint=init_checkpoint,
+    init_checkpoint=FLAGS.init_checkpoint,
     learning_rate=FLAGS.learning_rate,
     num_train_steps=FLAGS.num_train_steps,
     num_warmup_steps=FLAGS.num_warmup_steps,

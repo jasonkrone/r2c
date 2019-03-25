@@ -19,6 +19,7 @@ from __future__ import division
 from __future__ import print_function
 
 import os
+import sys
 import requests
 import zipfile
 import numpy as np
@@ -30,11 +31,19 @@ import h5py
 from tqdm import tqdm
 from data.get_bert_embeddings.vcr_loader import data_iter, data_iter_test, convert_examples_to_features, input_fn_builder
 
+sys.path.append("/home/ec2-user/r2c/") # so we can access config
+from config import BERT_CONFIG_PATH, BERT_CHECKPOINT_PATH, BERT_VOCAB_PATH, VISUAL_BERT_DIR
+
+
 flags = tf.flags
 
 FLAGS = flags.FLAGS
 
 flags.DEFINE_string("name", 'bert', "The name to use")
+
+flags.DEFINE_string("bert-dir", VISUAL_BERT_DIR, "dir for bert checkpoints")
+flags.DEFINE_string("bert-config-path", BERT_CONFIG_PATH, "json config for bert")
+flags.DEFINE_string("bert-vocab-path", BERT_VOCAB_PATH, "vocab.txt for bert")
 
 flags.DEFINE_string("split", 'train', "The split to use")
 
@@ -76,7 +85,7 @@ flags.DEFINE_bool(
 
 ####
 
-if not os.path.exists('uncased_L-12_H-768_A-12'):
+if not os.path.exists(FLAGS.bert_dir):
     response = requests.get('https://storage.googleapis.com/bert_models/2018_10_18/uncased_L-12_H-768_A-12.zip',
                             stream=True)
     with open('uncased_L-12_H-768_A-12.zip', "wb") as handle:
@@ -88,8 +97,14 @@ if not os.path.exists('uncased_L-12_H-768_A-12'):
 
 print("BERT HAS BEEN DOWNLOADED")
 mypath = os.getcwd()
-bert_config_file = os.path.join(mypath, 'uncased_L-12_H-768_A-12', 'bert_config.json')
-vocab_file = os.path.join(mypath, 'uncased_L-12_H-768_A-12', 'vocab.txt')
+if os.path.exists(FLAGS.bert_config_path) == False:
+    bert_config_file = os.path.join(mypath, 'uncased_L-12_H-768_A-12', 'bert_config.json')
+else:
+    bert_config_file = FLAGS.bert_config_path
+if os.path.exists(FLAGS.bert_vocab_path) == False:
+    vocab_file = os.path.join(mypath, 'uncased_L-12_H-768_A-12', 'vocab.txt')
+else:
+    vocab_file = FLAGS.bert_vocab_path
 # init_checkpoint = os.path.join(mypath, 'uncased_L-12_H-768_A-12', 'bert_model.ckpt')
 bert_config = modeling.BertConfig.from_json_file(bert_config_file)
 
